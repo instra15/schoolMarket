@@ -1,5 +1,5 @@
 package com.schoolMarket.enums;
 
 public enum ProductStatus {
-    ON_SALE
+    ON_SALE , OFF_SALE
 }
