@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: school-market
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/pleas?characterEncoding=UTF-8
+    username: root
+    password: ${DATABASE_PASSWORD}
+
+
+mybatis:
+  # 指定实体类所在的包，MyBatis 会为这些包中的类自动创建别名
+  type-aliases-package: com.schoolMarket.entity
+  # 开启驼峰命名转换（经典配置！）
+  configuration:
+    map-underscore-to-camel-case: true
+  # 指定 XML 映射文件的位置
+  mapper-locations: classpath:mapper/*.xml
+
+
+logging:
+  file:
+    name: logs/Log.log
+    max_size: 10MB
+    max_history: 7
+
+
+springdoc:
+  api-docs:
+    enabled: true
+
+  swagger-ui:
+    path: /swagger-ui.html
+
+  packages-to-scan: com.schoolMarket.controller
