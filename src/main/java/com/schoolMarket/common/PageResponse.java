@@ -1,4 +1,4 @@
 package com.schoolMarket.common;
 
-public class Result<T> {
+public class PageResponse<T> {
 }
