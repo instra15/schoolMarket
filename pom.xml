@@ -91,6 +91,11 @@
             <version>4.5.0</version>
         </dependency>
 
+        <!-- AOP 切面 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
 
     </dependencies>
 

@@ -1,11 +1,8 @@
 package com.schoolMarket.mapper;
 
-import com.schoolMarket.dto.UserRegisterDTO;
+import com.schoolMarket.dto.UserDTO;
 import com.schoolMarket.entity.User;
-import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface UserMapper {
@@ -14,5 +11,17 @@ public interface UserMapper {
     User findByUsername(@Param("username") String username);
 
     @Insert("insert into User(username,password,phone,nickname) values(#{username},#{password},#{phone}),#{nickname}")
-    void insert(UserRegisterDTO userRegisterDTO);
+    void insert(UserDTO userRegisterDTO);
+
+    @Select("select * from User where id=#{id}")
+    User findById(@Param("id") Long id);
+
+    @Update("update user set " +
+            "phone=#{phone}" +
+            "nickname=#{nickname}" +
+            "where username=#{username}")
+    void update(UserDTO userDTO);
+
+    @Update("update user set password=#{newPassword} where username=#{username}")
+    void updatePassword(@Param("username") String username,@Param("newPassword") String newPassword)
 }
