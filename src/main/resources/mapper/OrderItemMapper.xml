@@ -2,4 +2,35 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.OrderItemMapper">
 
+    <resultMap id="OrderItemMap" type="OrderItem">
+        <id     column="id"         property="id"/>
+        <result column="order_id"   property="orderId"/>
+        <result column="product_id" property="productId"/>
+        <result column="quantity"   property="quantity"/>
+        <result column="price"      property="price"/>
+    </resultMap>
+
+    <!--
+        批量插入订单项。
+        <foreach> 生成 VALUES (...), (...), (...) 形式的批量插入。
+
+        注意 collection 必须传非空 list，否则会生成
+        INSERT ... VALUES （空语句）导致 SQL 语法错误。
+        调用方需保证 list 不为空 —— Service 层已做校验。
+    -->
+    <insert id="batchInsert">
+        INSERT INTO order_item (order_id, product_id, quantity, price)
+        VALUES
+        <foreach collection="items" item="item" separator=",">
+            (#{item.orderId}, #{item.productId}, #{item.quantity}, #{item.price})
+        </foreach>
+    </insert>
+
+    <select id="findByOrderId" resultMap="OrderItemMap">
+        SELECT id, order_id, product_id, quantity, price
+        FROM order_item
+        WHERE order_id = #{orderId}
+        ORDER BY id
+    </select>
+
 </mapper>

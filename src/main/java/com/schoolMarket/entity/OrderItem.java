@@ -1,26 +1,26 @@
 package com.schoolMarket.entity;
 
-//订单项（一对多）
-
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
+/**
+ * 订单项实体，对应 order_item 表。订单与商品是一对多。
+ *
+ * <p>{@code price} 存下单时刻的单价快照，即使商品后续调价也不影响历史订单。</p>
+ */
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 public class OrderItem {
 
     private Long id;
 
-    private Order order;
+    private Long orderId;
 
-    private Product product;
+    private Long productId;
 
-    private BigDecimal quantity;
+    /** 购买数量。注意是整数而非小数 —— 原代码误写为 BigDecimal */
+    private Integer quantity;
 
+    /** 下单时单价快照 */
     private BigDecimal price;
-
 }

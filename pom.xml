@@ -77,18 +77,21 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- SpringDoc OpenAPI：自动生成 Swagger 文档（Knife4j 的底层依赖之一） -->
+        <!--
+          SpringDoc OpenAPI：自动生成 Swagger 文档
+          访问地址 http://localhost:8080/swagger-ui.html
+
+          已移除 Knife4j（2026-10-13）：
+          knife4j 4.5.0 的 Knife4jOpenApiCustomizer 字节码里调用的是
+          SpringDocConfigProperties.getGroupConfigs() 返回 List，
+          而 springdoc 3.0.2 已改为返回 Set，一旦启用 knife4j.enable
+          就会抛 NoSuchMethodError 导致 /v3/api-docs 文档页全空。
+          springdoc 3.0.2 与 Spring Boot 4.0.8 同代，原生 Swagger UI 功能完整。
+        -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>3.0.2</version>
-        </dependency>
-
-        <!-- Knife4j：增强版 Swagger UI，提供更美观的接口文档界面 -->
-        <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-            <version>4.5.0</version>
         </dependency>
 
         <!-- AOP 切面 -->
