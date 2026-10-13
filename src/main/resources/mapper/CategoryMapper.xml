@@ -2,4 +2,75 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.CategoryMapper">
 
+    <resultMap id="CategoryMap" type="Category">
+        <id     column="id"          property="id"/>
+        <result column="name"        property="name"/>
+        <result column="description" property="description"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <resultMap id="CategoryVOMap" type="com.schoolMarket.vo.CategoryVO">
+        <id     column="id"           property="id"/>
+        <result column="name"         property="name"/>
+        <result column="description"  property="description"/>
+        <result column="product_count" property="productCount"/>
+        <result column="create_time"  property="createTime"/>
+    </resultMap>
+
+    <!--
+        用 LEFT JOIN + GROUP BY 一次查出所有分类及其商品数，
+        比「先查分类再逐个 count」少 N 次往返。
+
+        COUNT(p.id) 而非 COUNT(*)：LEFT JOIN 下若某分类无商品，
+        p.id 全为 NULL，COUNT(p.id) 返回 0，而 COUNT(*) 会错误地返回 1。
+    -->
+    <select id="findAllWithCount" resultMap="CategoryVOMap">
+        SELECT c.id,
+               c.name,
+               c.description,
+               COUNT(p.id) AS product_count,
+               c.create_time
+        FROM category c
+        LEFT JOIN product p ON p.category_id = c.id
+        GROUP BY c.id, c.name, c.description, c.create_time
+        ORDER BY c.id
+    </select>
+
+    <select id="findById" resultMap="CategoryMap">
+        SELECT id, name, description, create_time
+        FROM category
+        WHERE id = #{id}
+    </select>
+
+    <!-- 按名查，编辑时排除自身（excludeId） -->
+    <select id="findByName" resultMap="CategoryMap">
+        SELECT id, name, description, create_time
+        FROM category
+        WHERE name = #{name}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="Category" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO category (name, description, create_time)
+        VALUES (#{name}, #{description}, #{createTime})
+    </insert>
+
+    <update id="update">
+        UPDATE category
+        SET name        = #{name},
+            description = #{description}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM category WHERE id = #{id}
+    </delete>
+
+    <select id="countProductByCategory" resultType="int">
+        SELECT COUNT(*) FROM product WHERE category_id = #{categoryId}
+    </select>
+
 </mapper>

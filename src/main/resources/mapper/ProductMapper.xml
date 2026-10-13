@@ -1,6 +1,190 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.ProductMapper">
-    <!-- include <update id="deductStock"> optimistic-lock update here -->
+
+    <!-- ==================== 实体映射 ==================== -->
+    <resultMap id="ProductMap" type="Product">
+        <id     column="id"          property="id"/>
+        <result column="title"        property="title"/>
+        <result column="description"  property="description"/>
+        <result column="image_url"    property="imageUrl"/>
+        <result column="price"        property="price"/>
+        <result column="stock"        property="stock"/>
+        <result column="status"       property="status"/>
+        <result column="category_id"  property="categoryId"/>
+        <result column="seller_id"    property="sellerId"/>
+        <result column="version"      property="version"/>
+        <result column="create_time"  property="createTime"/>
+        <result column="update_time"  property="updateTime"/>
+    </resultMap>
+
+    <!--
+        ============ VO 映射：association 一对一关联 ============
+
+        商品详情要同时返回「分类名」和「卖家昵称」，手动分三次查再组装就是 N+1 问题。
+        这里用一次 LEFT JOIN + 两个 <association> 搞定。
+
+        注意：JOIN 出来的列必须起别名（c_id / u_nickname 等），
+        否则会与 p.* 里的同名列冲突，映射到错误的值。
+    -->
+    <resultMap id="ProductVOMap" type="com.schoolMarket.vo.ProductVO">
+        <id     column="p_id"        property="id"/>
+        <result column="p_title"     property="title"/>
+        <result column="p_desc"      property="description"/>
+        <result column="p_image"     property="imageUrl"/>
+        <result column="p_price"     property="price"/>
+        <result column="p_stock"     property="stock"/>
+        <result column="p_status"    property="status"/>
+
+        <association property="category" javaType="com.schoolMarket.vo.CategoryVO">
+            <id     column="c_id"   property="id"/>
+            <result column="c_name" property="name"/>
+        </association>
+
+        <association property="seller" javaType="com.schoolMarket.vo.UserVO">
+            <id     column="u_id"       property="id"/>
+            <result column="u_username" property="username"/>
+            <result column="u_nickname" property="nickname"/>
+        </association>
+
+        <result column="p_create"  property="createTime"/>
+        <result column="p_update"  property="updateTime"/>
+    </resultMap>
+
+    <!-- ==================== 公共 SQL 片段 ==================== -->
+
+    <!-- VO 查询的 SELECT 列表，列名与 ProductVOMap 一一对应 -->
+    <sql id="voColumns">
+        p.id          AS p_id,
+        p.title       AS p_title,
+        p.description AS p_desc,
+        p.image_url   AS p_image,
+        p.price       AS p_price,
+        p.stock       AS p_stock,
+        p.status      AS p_status,
+        c.id          AS c_id,
+        c.name        AS c_name,
+        u.id          AS u_id,
+        u.username    AS u_username,
+        u.nickname    AS u_nickname,
+        p.create_time AS p_create,
+        p.update_time AS p_update
+    </sql>
+
+    <!--
+        ============ 动态查询条件 ============
+
+        抽成独立 <sql> 片段，让 findVOByPage 和 countByCondition 共用，
+        保证「列表结果」与「总数」条件绝对一致 —— 这是手写分页最容易出错的地方。
+
+        <where> 会自动剥掉开头的 AND，并且内容全为空时不生成 WHERE 子句。
+    -->
+    <sql id="pageWhere">
+        <where>
+            <if test="q.keyword != null and q.keyword != ''">
+                AND (p.title LIKE CONCAT('%', #{q.keyword}, '%')
+                     OR p.description LIKE CONCAT('%', #{q.keyword}, '%'))
+            </if>
+            <if test="q.categoryId != null">
+                AND p.category_id = #{q.categoryId}
+            </if>
+            <if test="q.minPrice != null">
+                AND p.price &gt;= #{q.minPrice}
+            </if>
+            <if test="q.maxPrice != null">
+                AND p.price &lt;= #{q.maxPrice}
+            </if>
+            <if test="q.status != null">
+                AND p.status = #{q.status}
+            </if>
+            <if test="q.sellerId != null">
+                AND p.seller_id = #{q.sellerId}
+            </if>
+        </where>
+    </sql>
+
+    <!-- ==================== 语句 ==================== -->
+
+    <insert id="insert" parameterType="Product" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO product (title, description, image_url, price, stock, status,
+                             category_id, seller_id, version, create_time, update_time)
+        VALUES (#{title}, #{description}, #{imageUrl}, #{price}, #{stock}, #{status},
+                #{categoryId}, #{sellerId}, #{version}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="findById" resultMap="ProductMap">
+        SELECT *
+        FROM product
+        WHERE id = #{id}
+    </select>
+
+    <select id="findVOById" resultMap="ProductVOMap">
+        SELECT <include refid="voColumns"/>
+        FROM product p
+        LEFT JOIN category c ON p.category_id = c.id
+        LEFT JOIN `user` u ON p.seller_id = u.id
+        WHERE p.id = #{id}
+    </select>
+
+    <!--
+        分页查询：手写 LIMIT/OFFSET，不引入 PageHelper。
+        #{q.pageSize} 与 #{q.offset} 来自 PageQueryDTO，
+        offset = (pageNum - 1) * pageSize 在 DTO 里算好。
+    -->
+    <select id="findVOByPage" resultMap="ProductVOMap">
+        SELECT <include refid="voColumns"/>
+        FROM product p
+        LEFT JOIN category c ON p.category_id = c.id
+        LEFT JOIN `user` u ON p.seller_id = u.id
+        <include refid="pageWhere"/>
+        ORDER BY p.create_time DESC, p.id DESC
+        LIMIT #{q.pageSize} OFFSET #{q.offset}
+    </select>
+
+    <!-- 总数查询：与分页查询共用 pageWhere，保证条件一致 -->
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*)
+        FROM product p
+        LEFT JOIN category c ON p.category_id = c.id
+        LEFT JOIN `user` u ON p.seller_id = u.id
+        <include refid="pageWhere"/>
+    </select>
+
+    <update id="updateProduct">
+        UPDATE product
+        SET title       = #{title},
+            description = #{description},
+            price       = #{price},
+            stock       = #{stock},
+            category_id = #{categoryId},
+            version     = version + 1
+        WHERE id = #{id}
+    </update>
+
+    <!-- version 同步自增，避免与并发扣库存时对方持有的版本号失效 -->
+    <update id="updateStatus">
+        UPDATE product
+        SET status  = #{status},
+            version = version + 1
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM product WHERE id = #{id}
+    </delete>
+
+    <!--
+        ==================== Phase 3 占位 ====================
+        乐观锁扣库存 SQL，Phase 3 启用。
+
+    <update id="deductStock">
+        UPDATE product
+        SET stock   = stock - #{quantity},
+            version = version + 1
+        WHERE id      = #{productId}
+          AND version = #{version}
+          AND stock  &gt;= #{quantity}
+    </update>
+    -->
 
 </mapper>

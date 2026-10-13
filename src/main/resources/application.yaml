@@ -1,35 +1,80 @@
+# ============================================================
+# 校园二手交易平台 school-market
+# ============================================================
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true # 强制请求/响应都用 UTF-8，避免 Windows 默认 GBK 乱码
+
 spring:
   application:
     name: school-market
 
   datasource:
-    url: jdbc:mysql://localhost:3306/pleas?characterEncoding=UTF-8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # MySQL 8 必备三件套：
+    #   useSSL=false + allowPublicKeyRetrieval=true → 配合 caching_sha2_password 认证插件
+    #   serverTimezone → 固定时区，避免时区告警与时间漂移
+    url: jdbc:mysql://localhost:3306/school_market?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true
     username: root
-    password: ${DATABASE_PASSWORD}
+    # 带默认值：未设置 DATABASE_PASSWORD 环境变量时也能直接启动
+    password: ${DATABASE_PASSWORD:123456}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      pool-name: SchoolMarketHikariPool
 
+  jackson:
+    # 注意：Spring Boot 4 使用 Jackson 3（tools.jackson），
+    #      Jackson2ObjectMapperBuilderCustomizer 类已不存在，
+    #      所以日期格式只能在此配置，不能写自定义 Config 类。
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+    # Jackson 3 把日期相关的开关从 SerializationFeature 拆到了独立的
+    # DateTimeFeature 枚举，所以配置前缀是 datatype.datetime 而非 serialization。
+    # 写成 spring.jackson.serialization.write-dates-as-timestamps 会直接启动失败：
+    #   No enum constant tools.jackson.databind.SerializationFeature.write-dates-as-timestamps
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
 
 mybatis:
   # 指定实体类所在的包，MyBatis 会为这些包中的类自动创建别名
   type-aliases-package: com.schoolMarket.entity
-  # 开启驼峰命名转换（经典配置！）
+  # classpath*: 前缀 + ** 通配，覆盖 mapper/ 下任意层级子目录
+  # （Phase 3 按模块分子目录时无需再改配置）
+  mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-  # 指定 XML 映射文件的位置
-  mapper-locations: classpath:mapper/*.xml
-
-
-logging:
-  file:
-    name: logs/Log.log
-    max_size: 10MB
-    max_history: 7
-
+    # 关闭一级缓存：事务回滚后残留的查询缓存会造成「明明回滚了却查到旧值」的幻觉
+    cache-enabled: false
+    # 插入 NULL 字段时用 'NULL' 而非默认的 OTHER，否则 MySQL 报 Unknown type 1111
+    jdbc-type-for-null: 'NULL'
+    # 打印实际执行的 SQL + 参数 + 返回行数，调试乐观锁全靠它
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 springdoc:
   api-docs:
     enabled: true
-
+    path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
+    tags-sorter: alpha
+    operations-sorter: alpha
   packages-to-scan: com.schoolMarket.controller
+
+logging:
+  level:
+    root: INFO
+    com.schoolMarket: DEBUG
+    com.schoolMarket.mapper: DEBUG # SQL 日志，Phase 3 验证 deductStock 返回行数用
+  file:
+    name: logs/Log.log
+    max_size: 10MB
+    max_history: 7
