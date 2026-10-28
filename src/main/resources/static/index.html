@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园二手交易平台</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<!-- ============ 顶部导航 ============ -->
+<header class="topbar">
+    <div class="container topbar-inner">
+        <a class="logo" href="#" onclick="switchTab('market')">
+            <span class="logo-mark">校</span>
+            <span>校园二手交易平台</span>
+        </a>
+
+        <nav class="nav">
+            <a class="nav-item active" data-tab="market" onclick="switchTab('market')">逛市场</a>
+            <a class="nav-item" data-tab="sell" onclick="switchTab('sell')">发布</a>
+            <a class="nav-item" data-tab="orders" onclick="switchTab('orders')">我的订单</a>
+            <a class="nav-item" data-tab="sold" onclick="switchTab('sold')">我卖出的</a>
+            <a class="nav-item badge-wrap" data-tab="notifications" onclick="switchTab('notifications')">
+                通知<span class="badge" id="unreadBadge" hidden>0</span>
+            </a>
+        </nav>
+
+        <div class="account" id="accountArea">
+            <!-- 未登录 -->
+            <div id="guestBar" class="guest-bar">
+                <button class="btn btn-ghost" onclick="openModal('login')">登录</button>
+                <button class="btn btn-primary" onclick="openModal('register')">注册</button>
+            </div>
+            <!-- 已登录 -->
+            <div id="userBar" class="user-bar" hidden>
+                <span class="avatar" id="avatarChar">?</span>
+                <span class="nickname" id="nickname">-</span>
+                <button class="btn btn-ghost btn-sm" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ============ 逛市场 ============ -->
+<section class="tab-panel active" id="panel-market">
+    <div class="container">
+
+        <div class="hero">
+            <h1>闲置流转，让资源不被浪费</h1>
+            <p>教材、数码、生活用品，毕业生把用不上的传给下一届。</p>
+        </div>
+
+        <!-- 搜索与筛选 -->
+        <div class="filter-bar">
+            <input type="text" id="keyword" class="input" placeholder="搜索商品标题或描述…" onkeyup="if(event.key==='Enter')loadProducts(1)">
+            <select id="categoryFilter" class="input select" onchange="loadProducts(1)">
+                <option value="">全部分类</option>
+            </select>
+            <input type="number" id="minPrice" class="input input-price" placeholder="最低价" min="0">
+            <span class="price-sep">—</span>
+            <input type="number" id="maxPrice" class="input input-price" placeholder="最高价" min="0">
+            <button class="btn btn-primary" onclick="loadProducts(1)">搜索</button>
+            <button class="btn btn-ghost" onclick="resetFilter()">重置</button>
+        </div>
+
+        <!-- 商品列表 -->
+        <div id="productGrid" class="product-grid"></div>
+        <div id="productEmpty" class="empty" hidden>没有找到符合条件的商品</div>
+
+        <!-- 分页 -->
+        <div class="pager" id="productPager" hidden>
+            <button class="btn btn-ghost btn-sm" id="prevPage" onclick="changePage(-1)">上一页</button>
+            <span id="pageInfo">-</span>
+            <button class="btn btn-ghost btn-sm" id="nextPage" onclick="changePage(1)">下一页</button>
+        </div>
+    </div>
+</section>
+
+<!-- ============ 发布商品 ============ -->
+<section class="tab-panel" id="panel-sell">
+    <div class="container narrow">
+        <h2 class="section-title">发布商品</h2>
+        <form class="card form" id="publishForm" onsubmit="return publishProduct(event)">
+            <label class="field">
+                <span class="field-label">商品标题 <i>*</i></span>
+                <input type="text" id="pTitle" class="input" maxlength="100" placeholder="例：数据结构教材（含笔记）" required>
+            </label>
+            <label class="field">
+                <span class="field-label">商品描述</span>
+                <textarea id="pDesc" class="input" rows="4" maxlength="500" placeholder="成色、使用时长、有无划痕…"></textarea>
+            </label>
+            <label class="field">
+                <span class="field-label">图片地址</span>
+                <input type="text" id="pImage" class="input" maxlength="255" placeholder="https://…（可留空）">
+            </label>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">单价（元） <i>*</i></span>
+                    <input type="number" id="pPrice" class="input" step="0.01" min="0.01" placeholder="25.00" required>
+                </label>
+                <label class="field">
+                    <span class="field-label">库存 <i>*</i></span>
+                    <input type="number" id="pStock" class="input" step="1" min="0" value="1" required>
+                </label>
+                <label class="field">
+                    <span class="field-label">分类 <i>*</i></span>
+                    <select id="pCategory" class="input select" required></select>
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">发布</button>
+        </form>
+    </div>
+</section>
+
+<!-- ============ 我的订单 ============ -->
+<section class="tab-panel" id="panel-orders">
+    <div class="container">
+        <h2 class="section-title">我买到的</h2>
+        <div class="status-tabs">
+            <button class="chip active" data-status="" onclick="loadOrders('buy','',this)">全部</button>
+            <button class="chip" data-status="PENDING" onclick="loadOrders('buy','PENDING',this)">待支付</button>
+            <button class="chip" data-status="PAID" onclick="loadOrders('buy','PAID',this)">已支付</button>
+            <button class="chip" data-status="CANCELLED" onclick="loadOrders('buy','CANCELLED',this)">已取消</button>
+        </div>
+        <div id="orderList" class="order-list"></div>
+        <div id="orderEmpty" class="empty" hidden>还没有订单</div>
+    </div>
+</section>
+
+<!-- ============ 我卖出的 ============ -->
+<section class="tab-panel" id="panel-sold">
+    <div class="container">
+        <h2 class="section-title">我卖出的</h2>
+        <div id="soldList" class="order-list"></div>
+        <div id="soldEmpty" class="empty" hidden>还没有卖出记录</div>
+    </div>
+</section>
+
+<!-- ============ 通知中心 ============ -->
+<section class="tab-panel" id="panel-notifications">
+    <div class="container narrow">
+        <div class="panel-head">
+            <h2 class="section-title">通知</h2>
+            <button class="btn btn-ghost btn-sm" onclick="markAllRead()">全部标记已读</button>
+        </div>
+        <div id="notifyList" class="notify-list"></div>
+        <div id="notifyEmpty" class="empty" hidden>暂无通知</div>
+    </div>
+</section>
+
+<!-- ============ 商品详情弹窗 ============ -->
+<div class="modal-mask" id="detailModal">
+    <div class="modal modal-lg">
+        <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+        <div id="detailBody"></div>
+    </div>
+</div>
+
+<!-- ============ 登录弹窗 ============ -->
+<div class="modal-mask" id="loginModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+        <h3 class="modal-title">登录</h3>
+        <form onsubmit="return doLogin(event)">
+            <label class="field">
+                <span class="field-label">用户名</span>
+                <input type="text" id="loginUsername" class="input" autocomplete="username" required>
+            </label>
+            <label class="field">
+                <span class="field-label">密码</span>
+                <input type="password" id="loginPassword" class="input" autocomplete="current-password" required>
+            </label>
+            <div class="form-error" id="loginError"></div>
+            <button type="submit" class="btn btn-primary btn-block">登录</button>
+            <p class="form-tip">种子账号：zhangsan / lisi，密码 123456</p>
+        </form>
+    </div>
+</div>
+
+<!-- ============ 注册弹窗 ============ -->
+<div class="modal-mask" id="registerModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('registerModal')">&times;</button>
+        <h3 class="modal-title">注册</h3>
+        <form onsubmit="return doRegister(event)">
+            <label class="field">
+                <span class="field-label">用户名 <i>*</i></span>
+                <input type="text" id="regUsername" class="input" minlength="3" maxlength="50" required>
+            </label>
+            <label class="field">
+                <span class="field-label">昵称 <i>*</i></span>
+                <input type="text" id="regNickname" class="input" maxlength="50" required>
+            </label>
+            <label class="field">
+                <span class="field-label">手机号 <i>*</i></span>
+                <input type="text" id="regPhone" class="input" pattern="^1[3-9]\d{9}$" placeholder="11位手机号" required>
+            </label>
+            <label class="field">
+                <span class="field-label">密码 <i>*</i></span>
+                <input type="password" id="regPassword" class="input" minlength="6" maxlength="50" required>
+            </label>
+            <div class="form-error" id="registerError"></div>
+            <button type="submit" class="btn btn-primary btn-block">注册</button>
+        </form>
+    </div>
+</div>
+
+<!-- ============ 通用提示 ============ -->
+<div id="toast" class="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

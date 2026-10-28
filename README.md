@@ -59,10 +59,16 @@ mvn spring-boot:run
 
 | 用途 | 地址 |
 |---|---|
+| **Web 界面** | http://localhost:8080/ |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | 接口文档 JSON | http://localhost:8080/v3/api-docs |
 
 ### 5. 快速试一下
+
+Web 界面已内置全部功能，浏览器打开 http://localhost:8080/ 即可
+（种子账号 `zhangsan` / `lisi`，密码 `123456`）。
+
+也可以用 curl：
 
 ```bash
 # 登录（种子用户）
@@ -70,10 +76,10 @@ curl -s -c ck.txt -X POST http://localhost:8080/api/users/login \
   -H "Content-Type: application/json" \
   -d '{"username":"lisi","password":"123456"}'
 
-# 下单（商品1库存5，卖家是 zhangsan 所以用 lisi 买）
+# 下单（商品3的卖家是 zhangsan，所以用 lisi 买）
 curl -s -b ck.txt -X POST http://localhost:8080/api/orders \
   -H "Content-Type: application/json" \
-  -d '{"items":[{"productId":1,"quantity":2}]}'
+  -d '{"items":[{"productId":3,"quantity":1}]}'
 
 # 查通知（异步写入，稍等 1 秒）
 sleep 1 && curl -s -b ck.txt http://localhost:8080/api/notifications
@@ -214,9 +220,83 @@ if (TransactionSynchronizationManager.isSynchronizationActive()) {
 
 ---
 
-## 五、测试
+## 五、Web 前端
 
-### 5.1 运行
+`src/main/resources/static/` 下是一套**零依赖**的原生 HTML/CSS/JS 单页应用，
+由 Spring Boot 直接托管，不需要 Node、不需要构建、不需要单独的服务器。
+
+```
+static/
+├── index.html   页面结构（5 个 Tab + 3 个弹窗）
+├── app.css      样式（CSS 变量统一配色，响应式适配移动端）
+└── app.js       逻辑（API 封装、状态管理、渲染）
+```
+
+### 功能覆盖
+
+| 页面 | 能做什么 |
+|---|---|
+| 逛市场 | 商品列表、关键词搜索、分类筛选、价格区间筛选、分页 |
+| 商品详情 | 图片、描述、分类、卖家、库存、购买（选数量） |
+| 发布 | 标题/描述/图片地址/价格/库存/分类，提交后回到市场 |
+| 我买到的 | 按状态筛选（待支付/已支付/已取消）、去支付、取消订单 |
+| 我卖出的 | 卖家视角的订单列表 |
+| 通知 | 通知列表、未读红点、全部标记已读 |
+| 登录/注册 | 弹窗表单，带字段级校验与后端错误提示 |
+
+### 三个关键实现点
+
+**1. 登录态用后端探针，不用前端存储**
+
+```js
+async function refreshLoginState() {
+    const res = await api('/api/users/me');   // 未登录返回 401
+    if (res.code === 200 && res.data) setUser(res.data);
+    else setUser(null);
+}
+```
+
+前端自己记 userId 会出现「前端显示已登录、后端认为未登录」的错觉。
+直接问后端要最准 —— 后端用 Session 存身份，`/api/users/me` 是唯一真相来源。
+
+**2. `credentials: 'same-origin'` 保证 Session Cookie 携带**
+
+后端靠 `JSESSIONID` Cookie 维持登录态，跨请求必须带上。
+同源请求浏览器默认会带，显式写上更保险。
+
+**3. 所有用户输入渲染前都做 HTML 转义**
+
+商品标题、描述、昵称都是用户可填的，直接 `innerHTML` 拼接会构成 XSS。
+`escapeHtml()` 处理 `& < > " '` 五个字符后再插入。
+
+### 前端契约回归测试
+
+字段名对不上是前端最常见的坑（后端改了字段名，前端静默显示 undefined）。
+`scripts/frontend-api-check.js` 按 `app.js` 的调用顺序打一遍后端，验证每个字段真实存在：
+
+```bash
+node scripts/frontend-api-check.js http://localhost:8080
+```
+
+```
+[PASS] 分类含 productCount（前端渲染用）
+[PASS] 未登录 /api/users/me → 401
+[PASS] 商品含 category.name（association）
+[PASS] 商品含 seller.nickname（association）
+[PASS] 拿到 Session Cookie
+[PASS] 已登录 /api/users/me → 200
+[PASS] 重复支付仍 200（幂等）
+[PASS] 下单后通知已异步写入
+[PASS] GET /api/products?categoryId 过滤生效
+[PASS] GET /api/products?keyword 搜索生效
+...
+```
+
+---
+
+## 六、测试
+
+### 6.1 运行
 
 ```bash
 # 未配置数据库时，45 个测试自动跳过（不是失败）
@@ -232,7 +312,7 @@ mvn test
 > 需要真实 MySQL —— 项目 SQL 用了 `CONCAT`、反引号、`LIMIT...OFFSET` 等 MySQL 专有语法，
 > H2 等内存库无法替代。
 
-### 5.2 测试覆盖
+### 6.2 测试覆盖
 
 | 测试类 | 数量 | 重点 |
 |---|---|---|
@@ -243,7 +323,7 @@ mvn test
 | `ConcurrentStockTest` | 4 | **并发防超卖**、事务整体回滚、乐观锁拒绝过期 version |
 | `ApiControllerTest` | 11 | 统一响应体、401 未登录、参数校验 400、越权拦截 |
 
-### 5.3 并发压测
+### 6.3 并发压测
 
 ```bash
 # 方式一：JUnit 测试（推荐，CountDownLatch 保证同一瞬间起跑）
@@ -262,7 +342,7 @@ bash scripts/stock-race-test.sh
 
 ---
 
-## 六、技术决策记录
+## 七、技术决策记录
 
 几个偏离"常规写法"的决定，都是踩过坑后确认的：
 
@@ -320,7 +400,7 @@ Lombok 的 `@Data` 对 `boolean isRead` 生成 `isRead()`/`setRead()`，MyBatis 
 
 ---
 
-## 七、项目结构
+## 八、项目结构
 
 ```
 src/main/java/com/schoolMarket/
@@ -340,15 +420,17 @@ src/main/java/com/schoolMarket/
 └── concurrent/     StockRaceTest 独立压测程序
 
 src/main/resources/mapper/    7 个 Mapper XML（约 700 行）
+src/main/resources/static/    Web 前端（index.html / app.css / app.js）
 src/test/java/               6 个测试类，45 个测试
 sql/init.sql                 建库 + 种子数据
 sql/init-test.sql            测试库
 scripts/stock-race-test.sh   并发压测脚本
+scripts/frontend-api-check.js  前端 API 契约回归测试
 ```
 
 ---
 
-## 八、已知限制
+## 九、已知限制
 
 作为个人练手项目，以下是刻意未做的：
 
