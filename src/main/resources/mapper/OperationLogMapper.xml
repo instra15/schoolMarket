@@ -2,4 +2,35 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.OperationLogMapper">
 
+    <resultMap id="OperationLogMap" type="OperationLog">
+        <id     column="id"          property="id"/>
+        <result column="user_id"     property="userId"/>
+        <result column="action"      property="action"/>
+        <result column="method"      property="method"/>
+        <result column="detail"      property="detail"/>
+        <result column="result"      property="result"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="allColumns">
+        id, user_id, action, method, detail, result, create_time
+    </sql>
+
+    <insert id="insert" parameterType="OperationLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO operation_log (user_id, action, method, detail, result, create_time)
+        VALUES (#{userId}, #{action}, #{method}, #{detail}, #{result}, #{createTime})
+    </insert>
+
+    <select id="findPageByUser" resultMap="OperationLogMap">
+        SELECT <include refid="allColumns"/>
+        FROM operation_log
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC, id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(*) FROM operation_log WHERE user_id = #{userId}
+    </select>
+
 </mapper>

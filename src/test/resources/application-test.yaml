@@ -1,0 +1,46 @@
+# ============================================================
+# 测试环境配置
+#
+# 使用独立的测试库 school_market_test，与开发库 school_market 隔离，
+# 避免测试数据污染开发数据。
+#
+# 库结构用 sql/init-test.sql 创建（与 init.sql 结构一致，仅库名不同）。
+# ============================================================
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/school_market_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true
+    username: root
+    # 测试库密码：可用环境变量覆盖
+    password: ${DATABASE_PASSWORD:123456}
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 20
+      # 并发测试需要较多连接
+      connection-timeout: 30000
+      pool-name: SchoolMarketTestHikariPool
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+    datatype:
+      datetime:
+        write-dates-as-timestamps: false
+
+mybatis:
+  type-aliases-package: com.schoolMarket.entity
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    jdbc-type-for-null: 'NULL'
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  level:
+    root: WARN
+    com.schoolMarket: INFO
+    # 需要看 SQL 时改成 DEBUG
+    com.schoolMarket.mapper: INFO

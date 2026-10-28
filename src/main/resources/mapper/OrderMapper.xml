@@ -2,4 +2,177 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.OrderMapper">
 
+    <!-- ==================== 实体映射 ==================== -->
+    <resultMap id="OrderMap" type="Order">
+        <id     column="id"          property="id"/>
+        <result column="order_no"    property="orderNo"/>
+        <result column="buyer_id"    property="buyerId"/>
+        <result column="total_price" property="totalPrice"/>
+        <result column="status"      property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="pay_time"    property="payTime"/>
+    </resultMap>
+
+    <!--
+        ============ VO 映射：collection 一对多 ============
+
+        一个订单含多个订单项。这里用一次 LEFT JOIN + <collection> 带出，
+        MyBatis 会依据 <id> 自动去重合并 —— 即便JOIN 出多行重复的订单记录，
+        最终也只会生成一个 OrderVO，其 items 里装齐所有订单项。
+
+        这正是 association / collection 相比「Service 里手动组装」的价值：
+        避免 N+1 查询，且 MyBatis 帮我们处理了行合并的脏活。
+
+        注意 DTD 要求的元素顺序：
+            constructor? → id* → result* → association* → collection* → discriminator?
+        即 <result> 必须全部排在 <collection> 之前，否则 DTD 校验失败。
+    -->
+    <resultMap id="OrderVOMap" type="com.schoolMarket.vo.OrderVO">
+        <id     column="o_id"          property="id"/>
+        <result column="o_order_no"    property="orderNo"/>
+        <result column="o_buyer_id"    property="buyerId"/>
+        <result column="o_total"       property="totalPrice"/>
+        <result column="o_status"      property="status"/>
+        <result column="o_create"      property="createTime"/>
+        <result column="o_pay"         property="payTime"/>
+
+        <collection property="items" ofType="com.schoolMarket.vo.OrderItemVO">
+            <id     column="oi_id"     property="id"/>
+            <result column="oi_product" property="productId"/>
+            <result column="p_title"   property="productTitle"/>
+            <result column="p_image"   property="productImageUrl"/>
+            <result column="oi_qty"    property="quantity"/>
+            <result column="oi_price"  property="price"/>
+        </collection>
+    </resultMap>
+
+    <!-- ==================== 公共 SQL 片段 ==================== -->
+
+    <!-- VO 查询的SELECT 列表，列名与 OrderVOMap 一一对应 -->
+    <sql id="voColumns">
+        o.id           AS o_id,
+        o.order_no     AS o_order_no,
+        o.buyer_id     AS o_buyer_id,
+        o.total_price  AS o_total,
+        o.status       AS o_status,
+        o.create_time  AS o_create,
+        o.pay_time     AS o_pay,
+        oi.id          AS oi_id,
+        oi.product_id  AS oi_product,
+        p.title        AS p_title,
+        p.image_url    AS p_image,
+        oi.quantity    AS oi_qty,
+        oi.price       AS oi_price
+    </sql>
+
+    <!-- 订单项 JOIN -->
+    <sql id="itemJoin">
+        LEFT JOIN order_item oi ON oi.order_id = o.id
+        LEFT JOIN product p ON p.id = oi.product_id
+    </sql>
+
+    <!-- 买家/卖家通用的动态条件（状态过滤） -->
+    <sql id="orderStatusWhere">
+        <if test="q.status != null">
+            AND o.status = #{q.status}
+        </if>
+    </sql>
+
+    <!-- ==================== 语句 ==================== -->
+
+    <insert id="insert" parameterType="Order" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `order` (order_no, buyer_id, total_price, status, create_time)
+        VALUES (#{orderNo}, #{buyerId}, #{totalPrice}, #{status}, #{createTime})
+    </insert>
+
+    <select id="findByOrderNo" resultMap="OrderMap">
+        SELECT id, order_no, buyer_id, total_price, status, create_time, pay_time
+        FROM `order`
+        WHERE order_no = #{orderNo}
+    </select>
+
+    <select id="findVOByOrderNo" resultMap="OrderVOMap">
+        SELECT <include refid="voColumns"/>
+        FROM `order` o
+        <include refid="itemJoin"/>
+        WHERE o.order_no = #{orderNo}
+    </select>
+
+    <!--
+        支付：WHERE 里带 status = 'PENDING' 是幂等的关键。
+        已支付的订单再次调用时影响行数为 0，不会重复更新 pay_time。
+    -->
+    <update id="pay">
+        UPDATE `order`
+        SET status   = 'PAID',
+            pay_time = #{payTime}
+        WHERE order_no = #{orderNo}
+          AND status   = 'PENDING'
+    </update>
+
+    <update id="cancel">
+        UPDATE `order`
+        SET status = 'CANCELLED'
+        WHERE order_no = #{orderNo}
+          AND status   = 'PENDING'
+    </update>
+
+    <!-- 买家视角分页 -->
+    <select id="findPageByBuyer" resultMap="OrderVOMap">
+        SELECT <include refid="voColumns"/>
+        FROM `order` o
+        <include refid="itemJoin"/>
+        <where>
+            o.buyer_id = #{buyerId}
+            <include refid="orderStatusWhere"/>
+        </where>
+        ORDER BY o.create_time DESC, o.id DESC
+        LIMIT #{q.pageSize} OFFSET #{q.offset}
+    </select>
+
+    <select id="countByBuyer" resultType="long">
+        SELECT COUNT(DISTINCT o.id)
+        FROM `order` o
+        <include refid="itemJoin"/>
+        <where>
+            o.buyer_id = #{buyerId}
+            <include refid="orderStatusWhere"/>
+        </where>
+    </select>
+
+    <!--
+        卖家视角分页。
+        order 表不存 seller_id（一个订单可能含多个卖家的商品），
+        必须 JOIN order_item → product 才能按卖家过滤。
+        用 EXISTS 子查询而非在 WHERE 里直接 JOIN，避免影响 count 的准确性。
+    -->
+    <select id="findPageBySeller" resultMap="OrderVOMap">
+        SELECT <include refid="voColumns"/>
+        FROM `order` o
+        <include refid="itemJoin"/>
+        <where>
+            EXISTS (
+                SELECT 1 FROM order_item oi2
+                JOIN product p2 ON p2.id = oi2.product_id
+                WHERE oi2.order_id = o.id AND p2.seller_id = #{sellerId}
+            )
+            <include refid="orderStatusWhere"/>
+        </where>
+        ORDER BY o.create_time DESC, o.id DESC
+        LIMIT #{q.pageSize} OFFSET #{q.offset}
+    </select>
+
+    <select id="countBySeller" resultType="long">
+        SELECT COUNT(*)
+        FROM `order` o
+        <where>
+            EXISTS (
+                SELECT 1 FROM order_item oi2
+                JOIN product p2 ON p2.id = oi2.product_id
+                WHERE oi2.order_id = o.id AND p2.seller_id = #{sellerId}
+            )
+            <include refid="orderStatusWhere"/>
+        </where>
+    </select>
+
 </mapper>

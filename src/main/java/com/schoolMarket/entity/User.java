@@ -1,32 +1,30 @@
 package com.schoolMarket.entity;
 
-import com.schoolMarket.vo.UserVO;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
-//用户表
+import java.util.Date;
+
+/**
+ * 用户实体，对应 user 表。
+ *
+ * <p>注意：password 仅供内部使用，禁止通过 VO 直接透出给前端。
+ * VO 转换由 {@code UserMapper.xml} 的 resultMap 完成，不在实体里写转换方法。</p>
+ */
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 public class User {
 
     private Long id;
 
+    /** 登录账号，全表唯一 */
     private String username;
 
+    /** SHA-256 加盐哈希，绝不是明文 */
     private String password;
 
     private String phone;
 
+    /** 昵称，对外展示 */
     private String nickname;
 
-    public UserVO ToVO(User user)
-    {
-        UserVO userVO=new UserVO();
-        userVO.setNickname(user.getNickname());
-        userVO.setPhone(user.getPhone());
-        userVO.setUsername(user.getUsername());
-        return userVO;
-    }
+    private Date createTime;
 }

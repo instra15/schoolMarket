@@ -2,6 +2,78 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.schoolMarket.mapper.UserMapper">
 
+    <!--
+        显式 resultMap，不依赖驼峰自动映射。
+        好处：列名与字段名不一致时（如 is_read → read）能在 XML 里一眼看出来，
+              不会像驼峰自动映射那样静默失效且不报错。
+    -->
+    <resultMap id="UserMap" type="User">
+        <id     column="id"          property="id"/>
+        <result column="username"    property="username"/>
+        <result column="password"    property="password"/>
+        <result column="phone"       property="phone"/>
+        <result column="nickname"    property="nickname"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
 
+    <!-- 脱敏 VO：不含 password 列 -->
+    <resultMap id="UserVOMap" type="com.schoolMarket.vo.UserVO">
+        <id     column="id"          property="id"/>
+        <result column="username"    property="username"/>
+        <result column="phone"       property="phone"/>
+        <result column="nickname"    property="nickname"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="userColumns">
+        id, username, password, phone, nickname, create_time
+    </sql>
+
+    <!-- VO 查询统一只取这 4 列，从 SQL 层面杜绝密码泄露 -->
+    <sql id="userVOColumns">
+        id, username, phone, nickname, create_time
+    </sql>
+
+    <select id="findByUsername" resultMap="UserMap">
+        SELECT <include refid="userColumns"/>
+        FROM `user`
+        WHERE username = #{username}
+    </select>
+
+    <select id="findById" resultMap="UserMap">
+        SELECT <include refid="userColumns"/>
+        FROM `user`
+        WHERE id = #{id}
+    </select>
+
+    <select id="findVOById" resultMap="UserVOMap">
+        SELECT <include refid="userVOColumns"/>
+        FROM `user`
+        WHERE id = #{id}
+    </select>
+
+    <select id="findVOByUsername" resultMap="UserVOMap">
+        SELECT <include refid="userVOColumns"/>
+        FROM `user`
+        WHERE username = #{username}
+    </select>
+
+    <insert id="insert" parameterType="User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `user` (username, password, phone, nickname, create_time)
+        VALUES (#{username}, #{password}, #{phone}, #{nickname}, #{createTime})
+    </insert>
+
+    <update id="updateProfile">
+        UPDATE `user`
+        SET nickname = #{nickname},
+            phone    = #{phone}
+        WHERE username = #{username}
+    </update>
+
+    <update id="updatePassword">
+        UPDATE `user`
+        SET password = #{password}
+        WHERE username = #{username}
+    </update>
 
 </mapper>
